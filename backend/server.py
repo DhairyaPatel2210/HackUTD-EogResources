@@ -17,6 +17,7 @@ from ml.app import HydrateDetector
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Email, To, Content
 from typing import Optional, Union, List
+import math
 
 
 app = Flask(__name__)
@@ -354,8 +355,8 @@ def get_historical_data():
                 'device_id': row['device_id'],
                 'timestamp': converted_timestamp,
                 'gas_meter_volume_instant': float(res['current_metrics']['volume']),
-                'gas_meter_volume_setpoint': float(res['current_metrics']['setpoint']),
-                'gas_valve_percent_open': float(res['current_metrics']['valve']),
+                'gas_meter_volume_setpoint': None if math.isnan(float(res['current_metrics']['setpoint'])) else float(res['current_metrics']['setpoint']),
+                'gas_valve_percent_open': None if math.isnan(float(res['current_metrics']['valve'])) else float(res['current_metrics']['valve']),
                 'created_at': datetime.fromisoformat(row['created_at'].isoformat()).strftime("%m/%d/%Y %I:%M:%S %p"),
                 'is_hydration': hydrate
             })
