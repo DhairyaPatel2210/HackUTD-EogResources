@@ -169,6 +169,45 @@ def signup():
         if 'conn' in locals():
             conn.close()
 
+@app.route('/api/validate', methods=['GET'])
+def validate():
+    try:
+        # Check JWT token in header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'No token provided'}), 401
+
+        token = auth_header.split(' ')[1]
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': 'Invalid token'}), 401
+
+        email = payload['email']
+
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Get user from database
+        cur.execute("SELECT first_name, last_name FROM users WHERE email = %s", (email,))
+        user = cur.fetchone()
+
+        return jsonify({
+            'first_name': user['first_name'],
+            'last_name': user['last_name'],
+            'message': 'Valid Token'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+    finally:
+        if 'cur' in locals():
+            cur.close()
+        if 'conn' in locals():
+            conn.close()
+
 @app.route('/api/login', methods=['POST'])
 def login():
     try:
