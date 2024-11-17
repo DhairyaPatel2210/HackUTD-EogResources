@@ -1,15 +1,19 @@
 import { create } from 'zustand';
 
-export const useCurrentUser = create()((set) => ({
-    // State
-    isAuthenticated: true,
+const initialState = {
+    isAuthenticated: false,
     firstName: 'John',
-    lastName: 'Wick',
+    lastName: 'Wick'
+};
+
+export const useCurrentUser = create((set) => ({
+    // State
+    ...initialState,
 
     // Actions
     login: (payload) => set(() => ({
         isAuthenticated: true,
         ...payload
     })),
-    logout: () => set(() => ({ isAuthenticated: false }))
+    logout: () => set(() => initialState)
 }));

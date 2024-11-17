@@ -2,10 +2,11 @@ import { useSignupForm } from '@/hooks/signup/useSignupForm';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/Form';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { Spinner } from '../ui/Spinner';
 
 export const SignupForm = () => {
 
-    const { form, onSubmit } = useSignupForm();
+    const { form, loading, onSubmit } = useSignupForm();
 
     return (
         <Form {...form}>
@@ -13,7 +14,7 @@ export const SignupForm = () => {
                 className="flex flex-col justify-center gap-3"
                 onSubmit={form.handleSubmit(onSubmit)}
             >
-              
+
                 <FormField
                     control={form.control}
                     name="firstName"
@@ -24,6 +25,7 @@ export const SignupForm = () => {
                                 <Input
                                     className="w-full"
                                     placeholder="First Name"
+                                    disabled={loading}
                                     {...field}
                                 />
                             </FormControl>
@@ -32,7 +34,6 @@ export const SignupForm = () => {
                     )}
                 />
 
-                
                 <FormField
                     control={form.control}
                     name="lastName"
@@ -43,6 +44,7 @@ export const SignupForm = () => {
                                 <Input
                                     className="w-full"
                                     placeholder="Last Name"
+                                    disabled={loading}
                                     {...field}
                                 />
                             </FormControl>
@@ -51,7 +53,6 @@ export const SignupForm = () => {
                     )}
                 />
 
-                
                 <FormField
                     control={form.control}
                     name="email"
@@ -62,6 +63,7 @@ export const SignupForm = () => {
                                 <Input
                                     className="w-full"
                                     placeholder="Email Address"
+                                    disabled={loading}
                                     {...field}
                                 />
                             </FormControl>
@@ -70,7 +72,6 @@ export const SignupForm = () => {
                     )}
                 />
 
-               
                 <FormField
                     control={form.control}
                     name="password"
@@ -82,6 +83,7 @@ export const SignupForm = () => {
                                     type="password"
                                     className="w-full"
                                     placeholder="Password"
+                                    disabled={loading}
                                     {...field}
                                 />
                             </FormControl>
@@ -90,7 +92,6 @@ export const SignupForm = () => {
                     )}
                 />
 
-            
                 <FormField
                     control={form.control}
                     name="confirmPassword"
@@ -102,6 +103,7 @@ export const SignupForm = () => {
                                     type="password"
                                     className="w-full"
                                     placeholder="Confirm Password"
+                                    disabled={loading}
                                     {...field}
                                 />
                             </FormControl>
@@ -110,8 +112,12 @@ export const SignupForm = () => {
                     )}
                 />
 
-                <Button className="w-full" type="submit">
-                    Sign Up
+                <Button
+                    disabled={loading}
+                    className="w-full"
+                    type="submit"
+                >
+                    {loading ? <Spinner /> : 'Sign Up'}
                 </Button>
             </form>
         </Form>

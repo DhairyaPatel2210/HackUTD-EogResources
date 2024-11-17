@@ -1,7 +1,10 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import { useAxios } from '../axios/useAxios';
+import { setAuthToken } from '@/lib/localStorage';
+import { useCurrentUser } from '../zustand/useCurrentUser';
 
 
 const formSchema = z.object({
@@ -24,11 +27,16 @@ const formSchema = z.object({
     confirmPassword: z.string()
 }).refine((data) => data.password === data.confirmPassword, {
     message: "Passwords must match",
-    path: ["confirmPassword"], 
+    path: ["confirmPassword"],
 });
 
 
 export const useSignupForm = () => {
+
+    const loginAction = useCurrentUser((state) => state.login);
+    const { axiosInstance } = useAxios();
+    const [loading, setLoading] = useState(false);
+
     const form = useForm({
         resolver: zodResolver(formSchema),
         mode: 'onSubmit',
@@ -41,12 +49,33 @@ export const useSignupForm = () => {
         }
     });
 
-    const onSubmit = useCallback((values) => {
-        console.table(values);
+    const onSubmit = useCallback(async (values) => {
+        try {
+            setLoading(true);
+            console.table(values);
+
+            const response = await axiosInstance.post('/signup', {
+                email: values.email,
+                password: values.password,
+                first_name: values.firstName,
+                last_name: values.lastName
+            });
+
+            setAuthToken(response.data.token);
+            loginAction({
+                firstName: values.firstName,
+                lastName: values.lastName
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
     return {
         form,
+        loading,
         onSubmit
     };
 };
