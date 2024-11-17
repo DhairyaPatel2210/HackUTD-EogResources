@@ -13,7 +13,6 @@ from pythonjsonlogger import jsonlogger
 import pika
 import json
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ml.app import HydrateDetector
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Email, To, Content
@@ -50,7 +49,7 @@ def init_db():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
         # Create users table
         cur.execute('''
             CREATE TABLE IF NOT EXISTS users (
@@ -90,13 +89,13 @@ def init_db():
 
         # Create index on timestamp for better query performance
         cur.execute('''
-            CREATE INDEX IF NOT EXISTS idx_gas_meter_timestamp 
+            CREATE INDEX IF NOT EXISTS idx_gas_meter_timestamp
             ON gas_meter_data(timestamp)
         ''')
 
         conn.commit()
         print("Database initialized successfully!")
-        
+
     except psycopg2.Error as e:
         print(f"Database error: {e}")
         logger.error(f"Database initialization error: {str(e)}")
@@ -308,7 +307,7 @@ def get_historical_data():
         # Modify query based on whether timestamp is provided
         if query_timestamp:
             cur.execute("""
-                SELECT 
+                SELECT
                     device_id,
                     timestamp,
                     gas_meter_volume_instant,
@@ -316,15 +315,15 @@ def get_historical_data():
                     gas_valve_percent_open,
                     created_at
                 FROM gas_meter_data
-                WHERE device_id = %s 
+                WHERE device_id = %s
                 AND timestamp <= %s
                 AND user_email = %s
                 ORDER BY timestamp DESC
-                LIMIT %s 
+                LIMIT %s
             """, (device_id, query_timestamp, payload['email'], query_limit))
         else:
             cur.execute("""
-                SELECT 
+                SELECT
                     device_id,
                     timestamp,
                     gas_meter_volume_instant,
@@ -332,10 +331,10 @@ def get_historical_data():
                     gas_valve_percent_open,
                     created_at
                 FROM gas_meter_data
-                WHERE device_id = %s 
+                WHERE device_id = %s
                 AND user_email = %s
                 ORDER BY timestamp DESC
-                LIMIT %s 
+                LIMIT %s
             """, (device_id, payload['email'], query_limit))
 
         rows = cur.fetchall()
@@ -402,12 +401,12 @@ def get_user_devices():
 
         # Get all devices for the user
         cur.execute("""
-            SELECT 
+            SELECT
                 id,
                 email,
                 device_id,
                 created_at
-            FROM devices 
+            FROM devices
             WHERE email = %s
             ORDER BY created_at DESC
         """, (user_email,))
@@ -458,7 +457,7 @@ def send_email(
 ) -> dict:
     """
     Send an email using SendGrid.
-    
+
     Args:
         to_emails: Single email address or list of email addresses
         subject: Email subject line
@@ -466,10 +465,10 @@ def send_email(
         sender_email: Verified sender email address
         api_key: SendGrid API key
         html_content: Optional HTML content for the email
-    
+
     Returns:
         dict: Response containing success status and details
-    
+
     Raises:
         Exception: If email sending fails
     """
@@ -477,7 +476,7 @@ def send_email(
         # Convert single email to list
         if isinstance(to_emails, str):
             to_emails = [to_emails]
-            
+
         # Create email message
         email = Mail(
             from_email=Email(sender_email),
@@ -485,21 +484,21 @@ def send_email(
             subject=subject,
             plain_text_content=Content("text/plain", message)
         )
-        
+
         # Add HTML content if provided
         if html_content:
             email.content = Content("text/html", html_content)
-        
+
         # Send email
         sg = SendGridAPIClient(api_key)
         response = sg.send(email)
-        
+
         return {
             'success': True,
             'status_code': response.status_code,
             'message': 'Email sent successfully'
         }
-        
+
     except Exception as e:
         return {
             'success': False,
@@ -517,19 +516,19 @@ def handle_authenticate(data):
     if not email or not password:
         disconnect()
         return False
-        
+
     conn = get_db_connection()
     cur = conn.cursor()
-    
+
     # Verify credentials
     cur.execute("SELECT email, password FROM users WHERE email = %s", (email,))
     user = cur.fetchone()
-    
+
     if not user or not pbkdf2_sha256.verify(password, user['password']):
         logger.error("Password was incorrect")
         disconnect()
         return False
-    
+
     # Store authenticated client
     try:
         sid = request.sid
@@ -563,8 +562,8 @@ def handle_data(data):
         # Validate and extract data fields
         user_email = data['email']
         device_id = data['device_id']
-        
-       
+
+
         try:
             timestamp_str = data['Time']
             try:
@@ -579,11 +578,11 @@ def handle_data(data):
         except (KeyError, ValueError) as e:
             logger.error(f"Invalid data format: {str(e)}")
             return
-        
+
         # Store data in database
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
         # Insert data
         cur.execute("""
             INSERT INTO gas_meter_data (
@@ -610,7 +609,7 @@ def handle_data(data):
         INSERT INTO devices (device_id, email)
         SELECT %s, %s
         WHERE NOT EXISTS (
-            SELECT 1 FROM devices 
+            SELECT 1 FROM devices
             WHERE device_id = %s AND email = %s
         );
         """, (device_id, user_email, device_id, user_email))
@@ -621,15 +620,15 @@ def handle_data(data):
             hydrate = "start"
         if is_hydrate and message == "Hydrate event ended":
             hydrate = "end"
-        
+
         if hydrate == "start":
             print("Calling Message queue to send out email")
 
-        
+
         conn.commit()
         conn.close()
 
-      
+
     else:
         print("Not authenticated")
 
