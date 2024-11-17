@@ -18,7 +18,7 @@ load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, methods=["GET","POST"])  # Enable CORS for all routes
 
 # Configure logging
 logger = getLogger()
