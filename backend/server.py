@@ -360,15 +360,12 @@ def get_historical_data():
                 'is_hydration': hydrate
             })
 
-        # Add metadata to the response
-        response = {
+        return jsonify({
             'device_id': device_id,
             'query_timestamp': datetime.fromisoformat(query_timestamp.isoformat()).strftime("%m/%d/%Y %I:%M:%S %p") if query_timestamp else None,
             'total_records': len(data),
             'data': data
-        }
-
-        return jsonify(response), 200
+        }), 200
 
     except Exception as e:
         logger.error(f"Error fetching historical data: {str(e)}")
