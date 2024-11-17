@@ -1,6 +1,6 @@
 import { forwardRef } from 'react';
 import { cva } from 'class-variance-authority';
-import { ReactComponent as SpinnerIcon } from '@/assets/icons/spinner.svg';
+import SpinnerIcon from '@/assets/icons/spinner.svg?react';
 import { cn } from '@/lib/utils';
 
 const spinnerVariants = cva('', {
