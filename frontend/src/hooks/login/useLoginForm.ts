@@ -1,7 +1,10 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import { useCurrentUser } from '../zustand/useCurrentUser';
+import { useAxios } from '../axios/useAxios';
+import { setAuthToken } from '@/lib/localStorage';
 
 const formSchema = z.object({
     email: z.string()
@@ -17,6 +20,11 @@ const formSchema = z.object({
 });
 
 export const useLoginForm = () => {
+
+    const loginAction = useCurrentUser((state) => state.login);
+    const { axiosInstance } = useAxios();
+    const [loading, setLoading] = useState(false);
+
     const form = useForm({
         resolver: zodResolver(formSchema),
         mode: 'onSubmit',
@@ -26,12 +34,28 @@ export const useLoginForm = () => {
         }
     });
 
-    const onSubmit = useCallback((values) => {
-        console.table(values);
+    const onSubmit = useCallback(async (values) => {
+        try {
+            setLoading(true);
+            console.table(values);
+
+            const response = await axiosInstance.post('/login', values);
+
+            setAuthToken(response.data.token);
+            loginAction({
+                firstName: response.data.first_name,
+                lastName: response.data.last_name
+            });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
     return {
         form,
+        loading,
         onSubmit
     };
 };

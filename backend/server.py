@@ -10,6 +10,14 @@ import os
 from dotenv import load_dotenv
 from logging import getLogger
 from pythonjsonlogger import jsonlogger
+import pika
+import json
+import sys
+from ml.app import HydrateDetector
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Email, To, Content
+from typing import Optional, Union, List
+
 
 app = Flask(__name__)
 
@@ -18,7 +26,7 @@ load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, methods=["GET","POST"])  # Enable CORS for all routes
 
 # Configure logging
 logger = getLogger()
@@ -34,12 +42,14 @@ def get_db_connection():
         cursor_factory=RealDictCursor
     )
 
+hydrate_detector = HydrateDetector()
+
 # Create users table if not exists
 def init_db():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
         # Create users table
         cur.execute('''
             CREATE TABLE IF NOT EXISTS users (
@@ -56,7 +66,7 @@ def init_db():
         cur.execute('''
             CREATE TABLE IF NOT EXISTS devices (
                 id SERIAL PRIMARY KEY,
-                email VARCHAR(255) UNIQUE NOT NULL,
+                email VARCHAR(255) NOT NULL,
                 device_id VARCHAR(255) UNIQUE NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -79,13 +89,13 @@ def init_db():
 
         # Create index on timestamp for better query performance
         cur.execute('''
-            CREATE INDEX IF NOT EXISTS idx_gas_meter_timestamp 
+            CREATE INDEX IF NOT EXISTS idx_gas_meter_timestamp
             ON gas_meter_data(timestamp)
         ''')
 
         conn.commit()
         print("Database initialized successfully!")
-        
+
     except psycopg2.Error as e:
         print(f"Database error: {e}")
         logger.error(f"Database initialization error: {str(e)}")
@@ -276,73 +286,86 @@ def get_historical_data():
             return jsonify({'error': 'Invalid token'}), 401
 
         # Get query parameters
-        # data = request.get_json()
         device_id = request.args.get('device_id')
         timestamp_str = request.args.get('timestamp')
-        query_limit = 1000 if request.args.get('query_limit') == None else request.args.get('query_limit')
+        query_limit = 1000 if request.args.get('query_limit') is None else int(request.args.get('query_limit'))
 
         if not device_id:
             return jsonify({'error': 'device_id is required'}), 400
 
-        if not timestamp_str:
-            return jsonify({'error': 'timestamp is required'}), 400
-
-        
-        # Parse the timestamp
-
-        try:
-            query_timestamp = datetime.strptime(timestamp_str, '%m/%d/%Y %I:%M:%S %p')
-            
-        except ValueError:
-            return jsonify({'error': 'Invalid timestamp format. Use YYYY-MM-DD HH:MM:SS'}), 400
+        # Parse the timestamp if provided
+        query_timestamp = None
+        if timestamp_str:
+            try:
+                query_timestamp = datetime.strptime(timestamp_str, '%m/%d/%Y %I:%M:%S %p')
+            except ValueError:
+                return jsonify({'error': 'Invalid timestamp format. Use MM/DD/YYYY HH:MM:SS AM/PM'}), 400
 
         conn = get_db_connection()
         cur = conn.cursor()
 
-
-        # Get the historical data
-        cur.execute("""
-            SELECT 
-                device_id,
-                timestamp,
-                gas_meter_volume_instant,
-                gas_meter_volume_setpoint,
-                gas_valve_percent_open,
-                created_at
-            FROM gas_meter_data
-            WHERE device_id = %s 
-            AND timestamp <= %s
-            AND user_email = %s
-            ORDER BY timestamp DESC
-            LIMIT %s 
-        """, (device_id, query_timestamp, payload['email'], query_limit))
+        # Modify query based on whether timestamp is provided
+        if query_timestamp:
+            cur.execute("""
+                SELECT
+                    device_id,
+                    timestamp,
+                    gas_meter_volume_instant,
+                    gas_meter_volume_setpoint,
+                    gas_valve_percent_open,
+                    created_at
+                FROM gas_meter_data
+                WHERE device_id = %s
+                AND timestamp <= %s
+                AND user_email = %s
+                ORDER BY timestamp DESC
+                LIMIT %s
+            """, (device_id, query_timestamp, payload['email'], query_limit))
+        else:
+            cur.execute("""
+                SELECT
+                    device_id,
+                    timestamp,
+                    gas_meter_volume_instant,
+                    gas_meter_volume_setpoint,
+                    gas_valve_percent_open,
+                    created_at
+                FROM gas_meter_data
+                WHERE device_id = %s
+                AND user_email = %s
+                ORDER BY timestamp DESC
+                LIMIT %s
+            """, (device_id, payload['email'], query_limit))
 
         rows = cur.fetchall()
 
         # Convert the results to a list of dictionaries
         data = []
         for row in rows:
+            converted_timestamp = datetime.fromisoformat(row['timestamp'].isoformat()).strftime("%m/%d/%Y %I:%M:%S %p")
+            res = hydrate_detector.process_data_point(converted_timestamp, row['gas_meter_volume_instant'],row['gas_meter_volume_setpoint'],row['gas_valve_percent_open'] )
+            hydrate = None
+            if res["is_hydrate"] and res["event_status"] == "ALERT: Hydrate formation detected!":
+                hydrate = "start"
+            if res["is_hydrate"] and res["event_status"] == "Hydrate event ended":
+                hydrate = "end"
+
             data.append({
                 'device_id': row['device_id'],
-                'timestamp': datetime.fromisoformat(row['timestamp'].isoformat()).strftime("%m/%d/%Y %I:%M:%S %p"),
-                'gas_meter_volume_instant': float(row['gas_meter_volume_instant']),
-                'gas_meter_volume_setpoint': float(row['gas_meter_volume_setpoint']),
-                'gas_valve_percent_open': float(row['gas_valve_percent_open']),
-                'created_at': datetime.fromisoformat(row['created_at'].isoformat()).strftime("%m/%d/%Y %I:%M:%S %p")
+                'timestamp': converted_timestamp,
+                'gas_meter_volume_instant': float(res['current_metrics']['volume']),
+                'gas_meter_volume_setpoint': float(res['current_metrics']['setpoint']),
+                'gas_valve_percent_open': float(res['current_metrics']['valve']),
+                'created_at': datetime.fromisoformat(row['created_at'].isoformat()).strftime("%m/%d/%Y %I:%M:%S %p"),
+                'is_hydration': hydrate
             })
 
-        
-        
-
-        # Add some metadata to the response
-        response = {
+        return jsonify({
             'device_id': device_id,
-            'query_timestamp': datetime.fromisoformat(query_timestamp.isoformat()).strftime("%m/%d/%Y %I:%M:%S %p"),
+            'query_timestamp': datetime.fromisoformat(query_timestamp.isoformat()).strftime("%m/%d/%Y %I:%M:%S %p") if query_timestamp else None,
             'total_records': len(data),
             'data': data
-        }
-
-        return jsonify(response), 200
+        }), 200
 
     except Exception as e:
         logger.error(f"Error fetching historical data: {str(e)}")
@@ -352,6 +375,7 @@ def get_historical_data():
             cur.close()
         if 'conn' in locals():
             conn.close()
+
 
 @app.route('/api/user/devices', methods=['GET'])
 def get_user_devices():
@@ -374,12 +398,12 @@ def get_user_devices():
 
         # Get all devices for the user
         cur.execute("""
-            SELECT 
+            SELECT
                 id,
                 email,
                 device_id,
                 created_at
-            FROM devices 
+            FROM devices
             WHERE email = %s
             ORDER BY created_at DESC
         """, (user_email,))
@@ -417,6 +441,68 @@ def get_user_devices():
 socketio = SocketIO(app, cors_allowed_origins="*")
 init_db()
 
+
+
+
+def send_email(
+    to_emails: Union[str, List[str]],
+    subject: str,
+    message: str,
+    sender_email: str = "your-verified-sender@example.com",
+    api_key: str = "your-sendgrid-api-key",
+    html_content: Optional[str] = None
+) -> dict:
+    """
+    Send an email using SendGrid.
+
+    Args:
+        to_emails: Single email address or list of email addresses
+        subject: Email subject line
+        message: Plain text message content
+        sender_email: Verified sender email address
+        api_key: SendGrid API key
+        html_content: Optional HTML content for the email
+
+    Returns:
+        dict: Response containing success status and details
+
+    Raises:
+        Exception: If email sending fails
+    """
+    try:
+        # Convert single email to list
+        if isinstance(to_emails, str):
+            to_emails = [to_emails]
+
+        # Create email message
+        email = Mail(
+            from_email=Email(sender_email),
+            to_emails=[To(email) for email in to_emails],
+            subject=subject,
+            plain_text_content=Content("text/plain", message)
+        )
+
+        # Add HTML content if provided
+        if html_content:
+            email.content = Content("text/html", html_content)
+
+        # Send email
+        sg = SendGridAPIClient(api_key)
+        response = sg.send(email)
+
+        return {
+            'success': True,
+            'status_code': response.status_code,
+            'message': 'Email sent successfully'
+        }
+
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to send email'
+        }
+
 # Store connected clients
 authenticated_clients = set()
 
@@ -427,19 +513,19 @@ def handle_authenticate(data):
     if not email or not password:
         disconnect()
         return False
-        
+
     conn = get_db_connection()
     cur = conn.cursor()
-    
+
     # Verify credentials
     cur.execute("SELECT email, password FROM users WHERE email = %s", (email,))
     user = cur.fetchone()
-    
+
     if not user or not pbkdf2_sha256.verify(password, user['password']):
         logger.error("Password was incorrect")
         disconnect()
         return False
-    
+
     # Store authenticated client
     try:
         sid = request.sid
@@ -464,16 +550,17 @@ def handle_disconnect():
         authenticated_clients.remove(sid)
     else:
         print('Client not connected')
-    
 
 @socketio.on('data')
 def handle_data(data):
     sid = request.sid if hasattr(request, 'sid') else request.namespace.socket.sid
     if sid in authenticated_clients:
-        print(f"Received data: {data}")
+        # print(f"Received data: {data}")
         # Validate and extract data fields
         user_email = data['email']
         device_id = data['device_id']
+
+
         try:
             timestamp_str = data['Time']
             try:
@@ -488,12 +575,11 @@ def handle_data(data):
         except (KeyError, ValueError) as e:
             logger.error(f"Invalid data format: {str(e)}")
             return
-        
+
         # Store data in database
         conn = get_db_connection()
         cur = conn.cursor()
-        
-        
+
         # Insert data
         cur.execute("""
             INSERT INTO gas_meter_data (
@@ -520,14 +606,26 @@ def handle_data(data):
         INSERT INTO devices (device_id, email)
         SELECT %s, %s
         WHERE NOT EXISTS (
-            SELECT 1 FROM devices 
+            SELECT 1 FROM devices
             WHERE device_id = %s AND email = %s
         );
         """, (device_id, user_email, device_id, user_email))
-        
+
+        is_hydrate, message = hydrate_detector.detect_hydrate_formation(gas_meter_volume_instant, gas_valve_percent_open, timestamp)
+        hydrate = None
+        if is_hydrate and message == "ALERT: Hydrate formation detected!":
+            hydrate = "start"
+        if is_hydrate and message == "Hydrate event ended":
+            hydrate = "end"
+
+        if hydrate == "start":
+            print("Calling Message queue to send out email")
+
+
         conn.commit()
-        # Broadcast the received data to all connected clients
-        # emit('data_update', data, broadcast=True)
+        conn.close()
+
+
     else:
         print("Not authenticated")
 
