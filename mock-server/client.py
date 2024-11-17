@@ -52,7 +52,11 @@ class CSVStreamer:
         try:
             # Read CSV file
             df = pd.read_csv(self.csv_path)
+            # df['Time'] = pd.to_datetime(df['Time'], format='%m/%d/%Y %I:%M:%S %p')
 
+            # Fill missing values
+            df['Inj Gas Meter Volume Setpoint'] = df['Inj Gas Meter Volume Setpoint'].ffill()
+            df['Inj Gas Valve Percent Open'] = df['Inj Gas Valve Percent Open'].interpolate()
             
             # Stream each row
             for _, row in df.iterrows():

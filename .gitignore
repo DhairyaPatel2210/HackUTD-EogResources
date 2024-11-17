@@ -13,3 +13,5 @@ frontend/node_modules/**
 mock-server/.venv/**
 mock-server/__pycache__/**
 mock-server/.env
+
+ml/__pycache__/**

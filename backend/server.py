@@ -12,6 +12,12 @@ from logging import getLogger
 from pythonjsonlogger import jsonlogger
 import pika
 import json
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from ml.app import HydrateDetector
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Email, To, Content
+from typing import Optional, Union, List
 
 
 app = Flask(__name__)
@@ -37,6 +43,8 @@ def get_db_connection():
         cursor_factory=RealDictCursor
     )
 
+hydrate_detector = HydrateDetector()
+
 # Create users table if not exists
 def init_db():
     try:
@@ -59,7 +67,7 @@ def init_db():
         cur.execute('''
             CREATE TABLE IF NOT EXISTS devices (
                 id SERIAL PRIMARY KEY,
-                email VARCHAR(255) UNIQUE NOT NULL,
+                email VARCHAR(255) NOT NULL,
                 device_id VARCHAR(255) UNIQUE NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -335,13 +343,22 @@ def get_historical_data():
         # Convert the results to a list of dictionaries
         data = []
         for row in rows:
+            converted_timestamp = datetime.fromisoformat(row['timestamp'].isoformat()).strftime("%m/%d/%Y %I:%M:%S %p")
+            res = hydrate_detector.process_data_point(converted_timestamp, row['gas_meter_volume_instant'],row['gas_meter_volume_setpoint'],row['gas_valve_percent_open'] )
+            hydrate = None
+            if res["is_hydrate"] and res["event_status"] == "ALERT: Hydrate formation detected!":
+                hydrate = "start"
+            if res["is_hydrate"] and res["event_status"] == "Hydrate event ended":
+                hydrate = "end"
+
             data.append({
                 'device_id': row['device_id'],
-                'timestamp': datetime.fromisoformat(row['timestamp'].isoformat()).strftime("%m/%d/%Y %I:%M:%S %p"),
-                'gas_meter_volume_instant': float(row['gas_meter_volume_instant']),
-                'gas_meter_volume_setpoint': float(row['gas_meter_volume_setpoint']),
-                'gas_valve_percent_open': float(row['gas_valve_percent_open']),
-                'created_at': datetime.fromisoformat(row['created_at'].isoformat()).strftime("%m/%d/%Y %I:%M:%S %p")
+                'timestamp': converted_timestamp,
+                'gas_meter_volume_instant': float(res['current_metrics']['volume']),
+                'gas_meter_volume_setpoint': float(res['current_metrics']['setpoint']),
+                'gas_valve_percent_open': float(res['current_metrics']['valve']),
+                'created_at': datetime.fromisoformat(row['created_at'].isoformat()).strftime("%m/%d/%Y %I:%M:%S %p"),
+                'is_hydration': hydrate
             })
 
         # Add metadata to the response
@@ -362,6 +379,7 @@ def get_historical_data():
             cur.close()
         if 'conn' in locals():
             conn.close()
+
 
 @app.route('/api/user/devices', methods=['GET'])
 def get_user_devices():
@@ -426,6 +444,68 @@ def get_user_devices():
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 init_db()
+
+
+
+
+def send_email(
+    to_emails: Union[str, List[str]],
+    subject: str,
+    message: str,
+    sender_email: str = "your-verified-sender@example.com",
+    api_key: str = "your-sendgrid-api-key",
+    html_content: Optional[str] = None
+) -> dict:
+    """
+    Send an email using SendGrid.
+    
+    Args:
+        to_emails: Single email address or list of email addresses
+        subject: Email subject line
+        message: Plain text message content
+        sender_email: Verified sender email address
+        api_key: SendGrid API key
+        html_content: Optional HTML content for the email
+    
+    Returns:
+        dict: Response containing success status and details
+    
+    Raises:
+        Exception: If email sending fails
+    """
+    try:
+        # Convert single email to list
+        if isinstance(to_emails, str):
+            to_emails = [to_emails]
+            
+        # Create email message
+        email = Mail(
+            from_email=Email(sender_email),
+            to_emails=[To(email) for email in to_emails],
+            subject=subject,
+            plain_text_content=Content("text/plain", message)
+        )
+        
+        # Add HTML content if provided
+        if html_content:
+            email.content = Content("text/html", html_content)
+        
+        # Send email
+        sg = SendGridAPIClient(api_key)
+        response = sg.send(email)
+        
+        return {
+            'success': True,
+            'status_code': response.status_code,
+            'message': 'Email sent successfully'
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to send email'
+        }
 
 # Store connected clients
 authenticated_clients = set()
@@ -504,8 +584,6 @@ def handle_data(data):
         conn = get_db_connection()
         cur = conn.cursor()
         
-
-        
         # Insert data
         cur.execute("""
             INSERT INTO gas_meter_data (
@@ -536,6 +614,17 @@ def handle_data(data):
             WHERE device_id = %s AND email = %s
         );
         """, (device_id, user_email, device_id, user_email))
+
+        is_hydrate, message = hydrate_detector.detect_hydrate_formation(gas_meter_volume_instant, gas_valve_percent_open, timestamp)
+        hydrate = None
+        if is_hydrate and message == "ALERT: Hydrate formation detected!":
+            hydrate = "start"
+        if is_hydrate and message == "Hydrate event ended":
+            hydrate = "end"
+        
+        if hydrate == "start":
+            print("Calling Message queue to send out email")
+
         
         conn.commit()
         conn.close()
