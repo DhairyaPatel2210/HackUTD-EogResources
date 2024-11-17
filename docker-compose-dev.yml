@@ -1,14 +1,42 @@
 services:
   frontend:
     build:
-      context: './frontend'
+      context: "./frontend"
       dockerfile: Dockerfile
+    env_file: ".env"
     ports:
       - "3000:80"
     networks:
       - "eog_resources_network"
-    volumes:
-      - ./frontend/dist:/usr/share/nginx/html
+
+  backend:
+    build:
+      context: "./backend"
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+    ports:
+      - "9090:9090"
+    env_file: ".env"
+    environment:
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=postgres
+    networks:
+      - "eog_resources_network"
+
+  postgres:
+    image: postgres:13
+    ports:
+      - "5432"
+    env_file: ".env"
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    networks:
+      - "eog_resources_network"
+    restart: unless-stopped
 
 networks:
   eog_resources_network:
