@@ -1,8 +1,15 @@
 # Backend
 backend/.venv/**
+backend/__pycache__/**
+backend/.env
 
 # Frontend
 frontend/node_modules/**
 
 # Global
 .env
+
+# Mock Server
+mock-server/.venv/**
+mock-server/__pycache__/**
+mock-server/.env
