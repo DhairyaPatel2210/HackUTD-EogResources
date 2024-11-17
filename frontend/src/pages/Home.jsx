@@ -1,5 +1,9 @@
+import { FiltersTray } from '@/components/home/FiltersTray';
+
 export const Home = () => {
     return (
-        <h1>Home Page</h1>
+        <div className='w-full h-full'>
+            <FiltersTray />
+        </div>
     );
 };
