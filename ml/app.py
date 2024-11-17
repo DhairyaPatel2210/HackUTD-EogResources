@@ -66,6 +66,8 @@ class HydrateDetector:
         
         # Detect hydrate formation
         is_hydrate, message = self.detect_hydrate_formation(volume, valve, timestamp)
+
+        query_timestamp = datetime.strptime(timestamp, '%m/%d/%Y %I:%M:%S %p')
         
         # Calculate current metrics
         metrics = {
@@ -73,7 +75,7 @@ class HydrateDetector:
             "setpoint": setpoint,
             "valve": valve,
             "volume_deviation": setpoint - volume if setpoint is not None else None,
-            "timestamp": timestamp.isoformat()
+            "timestamp": query_timestamp.isoformat()
         }
         
         # Update status
