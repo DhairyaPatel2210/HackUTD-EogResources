@@ -15,6 +15,7 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - postgres
+      - rabbitmq
     ports:
       - "9090:9090"
     env_file: ".env"
@@ -22,6 +23,12 @@ services:
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_HOST=postgres
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - SENDGRID_FROM_EMAIL=${SENDGRID_FROM_EMAIL}
+      - SENDGRID_FROM_NAME=${SENDGRID_FROM_NAME}
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
     networks:
       - "eog_resources_network"
 
@@ -34,6 +41,19 @@ services:
       - POSTGRES_DB=${DB_NAME}
       - POSTGRES_USER=${DB_USERNAME}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
+    networks:
+      - "eog_resources_network"
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:latest
+    ports:
+      - "5672:5672" # AMQP protocol port
+      - "15672:15672" # Management UI port
+    env_file: ".env"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
     networks:
       - "eog_resources_network"
     restart: unless-stopped

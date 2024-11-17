@@ -1,0 +1,12 @@
+2024-11-17 04:18:09,275 - rabbitmq_worker - ERROR - Error connecting to RabbitMQ: 'NoneType' object is not subscriptable
+2024-11-17 04:18:09,276 - rabbitmq_worker - ERROR - Error in consumer: 'NoneType' object is not subscriptable
+2024-11-17 04:19:19,323 - rabbitmq_worker - ERROR - Error connecting to RabbitMQ: 'NoneType' object is not subscriptable
+2024-11-17 04:19:19,323 - rabbitmq_worker - ERROR - Error in consumer: 'NoneType' object is not subscriptable
+2024-11-17 04:19:24,325 - rabbitmq_worker - ERROR - Error connecting to RabbitMQ: 'NoneType' object is not subscriptable
+2024-11-17 04:19:24,328 - rabbitmq_worker - ERROR - Error in consumer: 'NoneType' object is not subscriptable
+2024-11-17 04:19:29,332 - rabbitmq_worker - ERROR - Error connecting to RabbitMQ: 'NoneType' object is not subscriptable
+2024-11-17 04:19:29,334 - rabbitmq_worker - ERROR - Error in consumer: 'NoneType' object is not subscriptable
+2024-11-17 04:19:34,812 - rabbitmq_worker - ERROR - Error connecting to RabbitMQ: 'NoneType' object is not subscriptable
+2024-11-17 04:19:34,813 - rabbitmq_worker - ERROR - Error in consumer: 'NoneType' object is not subscriptable
+2024-11-17 04:19:39,814 - rabbitmq_worker - ERROR - Error connecting to RabbitMQ: 'NoneType' object is not subscriptable
+2024-11-17 04:19:39,817 - rabbitmq_worker - ERROR - Error in consumer: 'NoneType' object is not subscriptable

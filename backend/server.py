@@ -10,6 +10,9 @@ import os
 from dotenv import load_dotenv
 from logging import getLogger
 from pythonjsonlogger import jsonlogger
+import pika
+import json
+
 
 app = Flask(__name__)
 
@@ -276,46 +279,56 @@ def get_historical_data():
             return jsonify({'error': 'Invalid token'}), 401
 
         # Get query parameters
-        # data = request.get_json()
         device_id = request.args.get('device_id')
         timestamp_str = request.args.get('timestamp')
-        query_limit = 1000 if request.args.get('query_limit') == None else request.args.get('query_limit')
+        query_limit = 1000 if request.args.get('query_limit') is None else int(request.args.get('query_limit'))
 
         if not device_id:
             return jsonify({'error': 'device_id is required'}), 400
 
-        if not timestamp_str:
-            return jsonify({'error': 'timestamp is required'}), 400
-
-        
-        # Parse the timestamp
-
-        try:
-            query_timestamp = datetime.strptime(timestamp_str, '%m/%d/%Y %I:%M:%S %p')
-            
-        except ValueError:
-            return jsonify({'error': 'Invalid timestamp format. Use YYYY-MM-DD HH:MM:SS'}), 400
+        # Parse the timestamp if provided
+        query_timestamp = None
+        if timestamp_str:
+            try:
+                query_timestamp = datetime.strptime(timestamp_str, '%m/%d/%Y %I:%M:%S %p')
+            except ValueError:
+                return jsonify({'error': 'Invalid timestamp format. Use MM/DD/YYYY HH:MM:SS AM/PM'}), 400
 
         conn = get_db_connection()
         cur = conn.cursor()
 
-
-        # Get the historical data
-        cur.execute("""
-            SELECT 
-                device_id,
-                timestamp,
-                gas_meter_volume_instant,
-                gas_meter_volume_setpoint,
-                gas_valve_percent_open,
-                created_at
-            FROM gas_meter_data
-            WHERE device_id = %s 
-            AND timestamp <= %s
-            AND user_email = %s
-            ORDER BY timestamp DESC
-            LIMIT %s 
-        """, (device_id, query_timestamp, payload['email'], query_limit))
+        # Modify query based on whether timestamp is provided
+        if query_timestamp:
+            cur.execute("""
+                SELECT 
+                    device_id,
+                    timestamp,
+                    gas_meter_volume_instant,
+                    gas_meter_volume_setpoint,
+                    gas_valve_percent_open,
+                    created_at
+                FROM gas_meter_data
+                WHERE device_id = %s 
+                AND timestamp <= %s
+                AND user_email = %s
+                ORDER BY timestamp DESC
+                LIMIT %s 
+            """, (device_id, query_timestamp, payload['email'], query_limit))
+        else:
+            cur.execute("""
+                SELECT 
+                    device_id,
+                    timestamp,
+                    gas_meter_volume_instant,
+                    gas_meter_volume_setpoint,
+                    gas_valve_percent_open,
+                    created_at
+                FROM gas_meter_data
+                WHERE device_id = %s 
+                AND user_email = %s
+                ORDER BY timestamp DESC
+                LIMIT %s 
+            """, (device_id, payload['email'], query_limit))
 
         rows = cur.fetchall()
 
@@ -331,13 +344,10 @@ def get_historical_data():
                 'created_at': datetime.fromisoformat(row['created_at'].isoformat()).strftime("%m/%d/%Y %I:%M:%S %p")
             })
 
-        
-        
-
-        # Add some metadata to the response
+        # Add metadata to the response
         response = {
             'device_id': device_id,
-            'query_timestamp': datetime.fromisoformat(query_timestamp.isoformat()).strftime("%m/%d/%Y %I:%M:%S %p"),
+            'query_timestamp': datetime.fromisoformat(query_timestamp.isoformat()).strftime("%m/%d/%Y %I:%M:%S %p") if query_timestamp else None,
             'total_records': len(data),
             'data': data
         }
@@ -464,16 +474,17 @@ def handle_disconnect():
         authenticated_clients.remove(sid)
     else:
         print('Client not connected')
-    
 
 @socketio.on('data')
 def handle_data(data):
     sid = request.sid if hasattr(request, 'sid') else request.namespace.socket.sid
     if sid in authenticated_clients:
-        print(f"Received data: {data}")
+        # print(f"Received data: {data}")
         # Validate and extract data fields
         user_email = data['email']
         device_id = data['device_id']
+        
+       
         try:
             timestamp_str = data['Time']
             try:
@@ -493,6 +504,7 @@ def handle_data(data):
         conn = get_db_connection()
         cur = conn.cursor()
         
+
         
         # Insert data
         cur.execute("""
@@ -526,8 +538,9 @@ def handle_data(data):
         """, (device_id, user_email, device_id, user_email))
         
         conn.commit()
-        # Broadcast the received data to all connected clients
-        # emit('data_update', data, broadcast=True)
+        conn.close()
+
+      
     else:
         print("Not authenticated")
 
