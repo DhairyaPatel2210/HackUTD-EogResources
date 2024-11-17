@@ -1,0 +1,14 @@
+services:
+  frontend:
+    build:
+      context: './frontend'
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    networks:
+      - "eog_resources_network"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html
+
+networks:
+  eog_resources_network:
