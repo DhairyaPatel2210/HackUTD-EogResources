@@ -334,7 +334,7 @@ def get_historical_data():
                 FROM gas_meter_data
                 WHERE device_id = %s
                 AND user_email = %s
-                ORDER BY timestamp DESC
+                ORDER BY timestamp ASC
                 LIMIT %s
             """, (device_id, payload['email'], query_limit))
 
@@ -354,7 +354,7 @@ def get_historical_data():
             data.append({
                 'device_id': row['device_id'],
                 'timestamp': converted_timestamp,
-                'gas_meter_volume_instant': float(res['current_metrics']['volume']),
+                'gas_meter_volume_instant': None if math.isnan(float(res['current_metrics']['volume'])) else float(res['current_metrics']['volume']),
                 'gas_meter_volume_setpoint': None if math.isnan(float(res['current_metrics']['setpoint'])) else float(res['current_metrics']['setpoint']),
                 'gas_valve_percent_open': None if math.isnan(float(res['current_metrics']['valve'])) else float(res['current_metrics']['valve']),
                 'created_at': datetime.fromisoformat(row['created_at'].isoformat()).strftime("%m/%d/%Y %I:%M:%S %p"),
