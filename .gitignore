@@ -16,3 +16,6 @@ mock-server/__pycache__/**
 mock-server/.env
 
 ml/__pycache__/**
+
+# Data
+data/postgres/**
