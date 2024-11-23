@@ -12,7 +12,6 @@ export const useDeviceSelect = () => {
     const fetchDevicesList = useCallback(async () => {
         try {
             const response = await axiosInstance.get('/user/devices');
-            console.log(response);
 
             setDevices(response.data.devices);
             setCurrentDeviceId(response.data.devices[0].device_id);

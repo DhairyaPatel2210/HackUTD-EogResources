@@ -21,6 +21,6 @@ export const useCurrentDevice = create((set) => ({
         valveOpeningPercentageOverTimeData: [...state.valveOpeningPercentageOverTimeData, ...payload]
     })),
     setHydrationPeriodData: (payload) => set((state) => ({
-        hydrationPeriodData: [...state.hydrationPeriodData, ...payload]
+        hydrationPeriodData: payload
     }))
 }));
