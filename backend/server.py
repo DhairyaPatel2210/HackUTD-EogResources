@@ -317,9 +317,9 @@ def get_historical_data():
                     created_at
                 FROM gas_meter_data
                 WHERE device_id = %s
-                AND timestamp <= %s
+                AND timestamp > %s
                 AND user_email = %s
-                ORDER BY timestamp DESC
+                ORDER BY timestamp ASC
                 LIMIT %s
             """, (device_id, query_timestamp, payload['email'], query_limit))
         else:

@@ -84,8 +84,8 @@ if __name__ == '__main__':
     # Example usage
     csv_path = '../data/Gallant_102H-10_04-10_11.csv'  # Replace with your CSV file path
     email = "pateldhairya2210@gmail.com"
-    password="123"
-    device_id = "well2"
+    password="ABcd@@123"
+    device_id = "well1"
     streamer = CSVStreamer(csv_path, email, password, device_id)
     
     if streamer.connect_to_server():
