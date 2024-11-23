@@ -1,3 +1,5 @@
+name: eog-resources
+
 services:
   frontend:
     build:
@@ -29,14 +31,21 @@ services:
     image: postgres:13
     ports:
       - "5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
     env_file: ".env"
     environment:
       - POSTGRES_DB=${DB_NAME}
       - POSTGRES_USER=${DB_USERNAME}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME} -h localhost",]
+      interval: 1s
+      timeout: 5s
+      retries: 10
     networks:
       - "eog_resources_network"
-    restart: unless-stopped
+    restart: always
 
 networks:
   eog_resources_network:
