@@ -49,7 +49,6 @@ class HydrateDetector:
             self.current_event['end_time'] = current_time
             self.current_event['final_volume'] = volume
             self.current_event['final_valve'] = valve
-            self.current_event['duration'] = (current_time - self.current_event['start_time']).total_seconds()
             self.detected_events.append(self.current_event)
             self.current_event = None
             return True, "Hydrate event ended"
