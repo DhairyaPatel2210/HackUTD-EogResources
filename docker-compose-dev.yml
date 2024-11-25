@@ -17,16 +17,11 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - postgres
+      - rabbit
+
     ports:
       - "9090:9090"
     env_file: ".env"
-    environment:
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=postgres
-      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
-      - SENDGRID_FROM_EMAIL=${SENDGRID_FROM_EMAIL}
-      - SENDGRID_FROM_NAME=${SENDGRID_FROM_NAME}
     networks:
       - "eog_resources_network"
 
@@ -48,6 +43,30 @@ services:
     networks:
       - "eog_resources_network"
     restart: always
+
+  email_worker:
+    build:
+      context: "./worker"
+      dockerfile: Dockerfile
+    env_file: ".env"
+    depends_on:
+      rabbit:
+        condition: service_healthy
+        restart: true
+    networks:
+      - "eog_resources_network"
+    restart: on-failure
+
+  rabbit:
+    image: rabbitmq:4.0.4-management-alpine
+    env_file: ".env"
+    networks:
+      - "eog_resources_network"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   eog_resources_network:
