@@ -347,7 +347,6 @@ def get_historical_data():
             res = hydrate_detector.process_data_point(converted_timestamp, row['gas_meter_volume_instant'],row['gas_meter_volume_setpoint'],row['gas_valve_percent_open'] )
             hydrate = None
             if res["is_hydrate"] and res["event_status"] == "ALERT: Hydrate formation detected!":
-                # here I need to push the message to the rabbitMQ channel
                 hydrate = "start"
             if res["is_hydrate"] and res["event_status"] == "Hydrate event ended":
                 hydrate = "end"
@@ -444,6 +443,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 init_db()
 
 
+
 def send_to_rabbit(email:str, gas_meter_volume_instant, gas_valve_percent_open, timestamp, device_id) :
     if os.getenv('RABBIT_PORT') != None:
         connection = pika.BlockingConnection(
@@ -469,6 +469,68 @@ def send_to_rabbit(email:str, gas_meter_volume_instant, gas_valve_percent_open, 
     channel.basic_publish(exchange='', routing_key='email', body=message)
     print(f"{datetime.now()} - Pushed {email} to Queue for email sending worker")
     connection.close()
+
+
+
+def send_email(
+    to_emails: Union[str, List[str]],
+    subject: str,
+    message: str,
+    sender_email: str = "your-verified-sender@example.com",
+    api_key: str = "your-sendgrid-api-key",
+    html_content: Optional[str] = None
+) -> dict:
+    """
+    Send an email using SendGrid.
+
+    Args:
+        to_emails: Single email address or list of email addresses
+        subject: Email subject line
+        message: Plain text message content
+        sender_email: Verified sender email address
+        api_key: SendGrid API key
+        html_content: Optional HTML content for the email
+
+    Returns:
+        dict: Response containing success status and details
+
+    Raises:
+        Exception: If email sending fails
+    """
+    try:
+        # Convert single email to list
+        if isinstance(to_emails, str):
+            to_emails = [to_emails]
+
+        # Create email message
+        email = Mail(
+            from_email=Email(sender_email),
+            to_emails=[To(email) for email in to_emails],
+            subject=subject,
+            plain_text_content=Content("text/plain", message)
+        )
+
+        # Add HTML content if provided
+        if html_content:
+            email.content = Content("text/html", html_content)
+
+        # Send email
+        sg = SendGridAPIClient(api_key)
+        response = sg.send(email)
+
+        return {
+            'success': True,
+            'status_code': response.status_code,
+            'message': 'Email sent successfully'
+        }
+
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to send email'
+        }
+
 
 # Store connected clients
 authenticated_clients = set()
@@ -587,6 +649,9 @@ def handle_data(data):
         
         if hydrate == "start":
             send_to_rabbit(user_email, gas_meter_volume_instant, gas_valve_percent_open, timestamp, device_id)
+
+        if hydrate == "start":
+            print("Calling Message queue to send out email")
 
         conn.commit()
         conn.close()

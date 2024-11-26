@@ -10,6 +10,7 @@ frontend/node_modules/**
 # Global
 .env
 
+
 # Worker
 worker/.venv/**
 worker/__pycache__/**
@@ -22,6 +23,9 @@ mock-server/.env
 ml/__pycache__/**
 
 # Data
+
 data/postgres/**
 
 /mock-server
+data/postgres/**
+
