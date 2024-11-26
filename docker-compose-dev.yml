@@ -18,21 +18,9 @@ services:
     depends_on:
       - postgres
       - rabbit
-
     ports:
       - "9090:9090"
     env_file: ".env"
-
-    ports:
-      - "9090:9090"
-    env_file: ".env"
-    environment:
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=postgres
-      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
-      - SENDGRID_FROM_EMAIL=${SENDGRID_FROM_EMAIL}
-      - SENDGRID_FROM_NAME=${SENDGRID_FROM_NAME}
     networks:
       - "eog_resources_network"
 
@@ -54,7 +42,6 @@ services:
     networks:
       - "eog_resources_network"
     restart: always
-
 
   email_worker:
     build:
@@ -78,7 +65,6 @@ services:
       retries: 10
     networks:
       - "eog_resources_network"
-
 
 networks:
   eog_resources_network:
