@@ -444,6 +444,33 @@ init_db()
 
 
 
+def send_to_rabbit(email:str, gas_meter_volume_instant, gas_valve_percent_open, timestamp, device_id) :
+    if os.getenv('RABBIT_PORT') != None:
+        connection = pika.BlockingConnection(
+                    pika.ConnectionParameters(host=os.getenv('RABBIT_HOST'), port=int(os.getenv('RABBIT_PORT'))))
+    else:
+        connection = pika.BlockingConnection(
+                    pika.ConnectionParameters(host=os.getenv('RABBIT_HOST')))
+    
+    channel = connection.channel()
+
+    channel.queue_declare(queue='email')
+
+    message_dict = {
+        'email':email, 
+        'gas_meter_volume_instant': gas_meter_volume_instant, 
+        'gas_valve_percent_open' : gas_valve_percent_open, 
+        'timestamp':datetime.fromisoformat(timestamp.isoformat()).strftime("%m/%d/%Y %I:%M:%S %p"), 
+        'device_id':device_id
+        }
+
+    message = json.dumps(message_dict).encode('utf-8')
+
+    channel.basic_publish(exchange='', routing_key='email', body=message)
+    print(f"{datetime.now()} - Pushed {email} to Queue for email sending worker")
+    connection.close()
+
+
 
 def send_email(
     to_emails: Union[str, List[str]],
@@ -503,6 +530,7 @@ def send_email(
             'error': str(e),
             'message': 'Failed to send email'
         }
+
 
 # Store connected clients
 authenticated_clients = set()
@@ -618,10 +646,12 @@ def handle_data(data):
             hydrate = "start"
         if is_hydrate and message == "Hydrate event ended":
             hydrate = "end"
+        
+        if hydrate == "start":
+            send_to_rabbit(user_email, gas_meter_volume_instant, gas_valve_percent_open, timestamp, device_id)
 
         if hydrate == "start":
             print("Calling Message queue to send out email")
-
 
         conn.commit()
         conn.close()
