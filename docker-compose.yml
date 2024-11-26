@@ -48,5 +48,28 @@ services:
       - "eog_resources_network"
     restart: always
 
+  email_worker:
+    build:
+      context: "./worker"
+      dockerfile: Dockerfile
+    env_file: ".env"
+    depends_on:
+      rabbit:
+        condition: service_healthy
+        restart: true
+    networks:
+      - "eog_resources_network"
+
+  rabbit:
+    image: rabbitmq:4.0.4-management-alpine
+    env_file: ".env"
+    healthcheck:
+      test: rabbitmq-diagnostics check_port_connectivity
+      interval: 30s
+      timeout: 30s
+      retries: 10
+    networks:
+      - "eog_resources_network"
+
 networks:
   eog_resources_network:

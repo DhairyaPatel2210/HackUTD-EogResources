@@ -55,18 +55,17 @@ services:
         restart: true
     networks:
       - "eog_resources_network"
-    restart: on-failure
 
   rabbit:
     image: rabbitmq:4.0.4-management-alpine
     env_file: ".env"
+    healthcheck:
+      test: rabbitmq-diagnostics check_port_connectivity
+      interval: 30s
+      timeout: 30s
+      retries: 10
     networks:
       - "eog_resources_network"
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
 networks:
   eog_resources_network:
